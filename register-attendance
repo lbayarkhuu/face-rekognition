@@ -1,0 +1,58 @@
+const AWS = require("aws-sdk")
+
+
+var rekognition = new AWS.Rekognition();
+
+const write = async (name, date) => {
+    AWS.config.update({
+      region: "us-east-1",
+    });
+
+    const documentClient = new AWS.DynamoDB.DocumentClient({
+      region: "us-east-1",
+    })
+
+
+    var params = {
+        TableName: 'attendance',
+        Item:{
+            'studentId': name,
+            'date': date
+        }
+    };
+    
+    const res = await documentClient.put(params).promise()
+    
+    console.log(res)
+}
+
+exports.handler = async (event) => {
+    console.log(JSON.stringify(event))
+    
+    const key = event.Records[0].s3.object.key
+    const bucket = event.Records[0].s3.bucket.name
+    
+    var params = {
+        CollectionId: "faceapp3", 
+        FaceMatchThreshold: 95, 
+        Image: {
+            S3Object: {
+                Bucket: bucket, 
+                Name: key
+            }
+        }, 
+        MaxFaces: 1
+    }; 
+    
+    const res = await rekognition.searchFacesByImage(params).promise();
+    
+    console.log(JSON.stringify(res))
+    
+    if (!res.FaceMatches) return
+    if (res['FaceMatches'].length == 0) return 
+    
+    const name = res['FaceMatches'][0]['Face']['ExternalImageId']
+    const date = (new Date()).toDateString()
+    
+    await write(name, date)
+};
